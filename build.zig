@@ -22,6 +22,19 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    // Choose the OpenGL API, version, profile and extensions you want to generate bindings for.
+    const gl_bindings = @import("zigglgen").generateBindingsModule(b, .{
+        .api = .gl,
+        .version = .@"4.1",
+        .profile = .core,
+        .extensions = &.{ .ARB_clip_control, .NV_scissor_exclusive },
+    });
+
+    // Import the generated module.
+    exe.root_module.addImport("gl", gl_bindings);
+
+    b.installArtifact(exe);
+
     // Use mach-glfw
     const glfw_dep = b.dependency("mach-glfw", .{
         .target = target,
