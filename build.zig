@@ -42,6 +42,14 @@ pub fn build(b: *std.Build) void {
     });
     exe.root_module.addImport("mach-glfw", glfw_dep.module("mach-glfw"));
 
+    // Add Mach to our library and executable
+    const mach_dep = b.dependency("mach", .{
+        .target = target,
+        .optimize = optimize,
+    });
+
+    exe.root_module.addImport("mach", mach_dep.module("mach"));
+
     // This declares intent for the executable to be installed into the
     // standard location when the user invokes the "install" step (the default
     // step when running `zig build`).

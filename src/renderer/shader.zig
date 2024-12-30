@@ -1,5 +1,6 @@
 const std = @import("std");
 const gl = @import("gl");
+const math = @import("mach").math;
 
 pub const Shader = struct {
     program: u32 = 0,
@@ -25,5 +26,13 @@ pub const Shader = struct {
     }
     pub fn deinit(self: Self) void {
         gl.DeleteProgram(self.program);
+    }
+
+    pub fn setVec3(uniformLocation: i32, vec: math.Vec3) void {
+        gl.Uniform3fv(uniformLocation, 1, &vec.v[0]);
+    }
+
+    pub fn setMatrix(uniformLocation: i32, matrix: math.Mat4x4) void {
+        gl.UniformMatrix4fv(uniformLocation, 1, gl.FALSE, &matrix.v[0].v[0]);
     }
 };

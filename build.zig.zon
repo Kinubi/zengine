@@ -59,6 +59,10 @@
             .url = "git+https://github.com/castholm/zigglgen#1c901bef6d312ef1814b8fce3c5a9e9e8e61ac2d",
             .hash = "12209d8a018832bee15d9da29a12fa753d89b56cd843cdf1f39501546c6467e38ba1",
         },
+        .mach = .{
+            .url = "https://pkg.machengine.org/mach/6450e8abbf609089f679c4b9b95d6de51a5cdfbc.tar.gz",
+            .hash = "1220c8c539efa6ab478d4f10e848690854dd1ed94d85669476c0f877084cb284f495",
+        },
     },
 
     // Specifies the set of files and directories that are included in this package.
