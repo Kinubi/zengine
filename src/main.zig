@@ -35,12 +35,6 @@ pub fn main() !void {
     gl.makeProcTableCurrent(&gl_procs);
     defer gl.makeProcTableCurrent(null);
 
-    const vertices = [_]f32{
-        -0.5, -0.5, 0,
-        0.5,  -0.5, 0,
-        0.0,  0.5,  0,
-    };
-
     //Shaders
     const vertexShaderFP = "../../res/shaders/simple_shader.vert";
     const fragShaderFP = "../../res/shaders/simple_shader.frag";
@@ -57,7 +51,7 @@ pub fn main() !void {
         fragShaderFP,
     }) catch unreachable;
 
-    std.debug.print("full_vs_path: {s}\n", .{full_vs_path});
+    std.log.info("Full vs path: {s}, Full fs path: {s}", .{ full_vs_path, full_fs_path });
 
     const vs_file = std.fs.openFileAbsolute(full_vs_path, .{}) catch unreachable;
     const vertexShaderSource = vs_file.readToEndAllocOptions(gpa.allocator(), (10 * 1024), null, @alignOf(u8), 0) catch unreachable;
@@ -94,6 +88,17 @@ pub fn main() !void {
     gl.LinkProgram(shader);
     defer gl.DeleteProgram(shader);
 
+    // Vertices
+    const vertices = [_]f32{
+        -0.5, -0.5, 0,
+        0.5,  -0.5, 0,
+        0.0,  0.5,  0,
+    };
+
+    const indices = [_]u32{
+        0, 1, 2,
+    };
+
     var vao: u32 = undefined;
     gl.GenVertexArrays(1, @ptrCast(&vao));
     defer gl.DeleteVertexArrays(1, @ptrCast(&vao));
@@ -110,6 +115,15 @@ pub fn main() !void {
 
     gl.BufferData(gl.ARRAY_BUFFER, @sizeOf(@TypeOf(vertices)), vertices[0..].ptr, gl.STATIC_DRAW);
 
+    var ibo: c_uint = undefined;
+    gl.GenBuffers(1, @ptrCast(&ibo));
+    defer gl.DeleteBuffers(1, @ptrCast(&ibo));
+
+    gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
+    defer gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, 0);
+
+    gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, @sizeOf(@TypeOf(indices)), indices[0..].ptr, gl.STATIC_DRAW);
+
     gl.VertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, 3 * @sizeOf(f32), 0);
     gl.EnableVertexAttribArray(0);
 
@@ -121,7 +135,7 @@ pub fn main() !void {
         gl.Clear(gl.COLOR_BUFFER_BIT);
         gl.UseProgram(shader);
         gl.BindVertexArray(vao);
-        gl.DrawArrays(gl.TRIANGLES, 0, 3);
+        gl.DrawElements(gl.TRIANGLES, indices.len, gl.UNSIGNED_INT, 0);
         window.swapBuffers();
     }
 }
