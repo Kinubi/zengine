@@ -1,6 +1,8 @@
 const std = @import("std");
 const glfw = @import("mach-glfw");
 const gl = @import("gl");
+const Mesh = @import("renderer/mesh.zig").Mesh;
+const Shader = @import("utils/shader.zig").Shader;
 /// Default GLFW error handling callback
 fn errorCallback(error_code: glfw.ErrorCode, description: [:0]const u8) void {
     std.log.err("glfw: {}: {s}\n", .{ error_code, description });
@@ -59,35 +61,6 @@ pub fn main() !void {
     const fs_file = std.fs.openFileAbsolute(full_fs_path, .{}) catch unreachable;
     const fragmentShaderSource = fs_file.readToEndAllocOptions(gpa.allocator(), (10 * 1024), null, @alignOf(u8), 0) catch unreachable;
 
-    const vertexShader = gl.CreateShader(gl.VERTEX_SHADER);
-    gl.ShaderSource(vertexShader, 1, &.{vertexShaderSource.ptr}, null);
-    gl.CompileShader(vertexShader);
-    var success: i32 = undefined;
-    gl.GetShaderiv(vertexShader, gl.COMPILE_STATUS, &success);
-    if (success == 0) {
-        var infoLog: [512]u8 = undefined;
-        gl.GetShaderInfoLog(vertexShader, 512, null, infoLog[0..]);
-        std.log.err("ERROR::SHADER::VERTEX::COMPILATION_FAILED\n{s}\n", .{infoLog});
-    }
-    defer gl.DeleteShader(vertexShader);
-
-    const fragmentShader = gl.CreateShader(gl.FRAGMENT_SHADER);
-    gl.ShaderSource(fragmentShader, 1, &.{fragmentShaderSource.ptr}, null);
-    gl.CompileShader(fragmentShader);
-    gl.GetShaderiv(fragmentShader, gl.COMPILE_STATUS, &success);
-    if (success == 0) {
-        var infoLog: [512]u8 = undefined;
-        gl.GetShaderInfoLog(fragmentShader, 512, null, infoLog[0..]);
-        std.log.err("ERROR::SHADER::FRAGMENT::COMPILATION_FAILED\n{s}\n", .{infoLog});
-    }
-    defer gl.DeleteShader(fragmentShader);
-
-    const shader = gl.CreateProgram();
-    gl.AttachShader(shader, vertexShader);
-    gl.AttachShader(shader, fragmentShader);
-    gl.LinkProgram(shader);
-    defer gl.DeleteProgram(shader);
-
     // Vertices
     const vertices = [_]f32{
         -0.5, -0.5, 0,
@@ -99,33 +72,25 @@ pub fn main() !void {
         0, 1, 2,
     };
 
-    var vao: u32 = undefined;
-    gl.GenVertexArrays(1, @ptrCast(&vao));
-    defer gl.DeleteVertexArrays(1, @ptrCast(&vao));
+    var mesh = Mesh.new(
+        vertices[0..].ptr,
+        indices[0..].ptr,
+        vertices.len,
+        indices.len,
+    );
 
-    gl.BindVertexArray(vao);
-    defer gl.BindVertexArray(0);
+    mesh.genBuffers();
+    mesh.bind();
+    defer mesh.unbind();
+    mesh.bufferData();
+    defer mesh.delete();
 
-    var vbo: u32 = undefined;
-    gl.GenBuffers(1, @ptrCast(&vbo));
-    defer gl.DeleteBuffers(1, @ptrCast(&vbo));
-
-    gl.BindBuffer(gl.ARRAY_BUFFER, vbo);
-    defer gl.BindBuffer(gl.ARRAY_BUFFER, 0);
-
-    gl.BufferData(gl.ARRAY_BUFFER, @sizeOf(@TypeOf(vertices)), vertices[0..].ptr, gl.STATIC_DRAW);
-
-    var ibo: c_uint = undefined;
-    gl.GenBuffers(1, @ptrCast(&ibo));
-    defer gl.DeleteBuffers(1, @ptrCast(&ibo));
-
-    gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
-    defer gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, 0);
-
-    gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, @sizeOf(@TypeOf(indices)), indices[0..].ptr, gl.STATIC_DRAW);
-
-    gl.VertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, 3 * @sizeOf(f32), 0);
-    gl.EnableVertexAttribArray(0);
+    var shader = Shader{
+        .vertSource = vertexShaderSource,
+        .fragSource = fragmentShaderSource,
+    };
+    shader.compile();
+    defer shader.deinit();
 
     main_loop: while (true) {
         glfw.waitEvents();
@@ -133,9 +98,9 @@ pub fn main() !void {
 
         gl.ClearColor(0.5, 0.1, 0.1, 1);
         gl.Clear(gl.COLOR_BUFFER_BIT);
-        gl.UseProgram(shader);
-        gl.BindVertexArray(vao);
-        gl.DrawElements(gl.TRIANGLES, indices.len, gl.UNSIGNED_INT, 0);
+        shader.bind();
+
+        mesh.draw();
         window.swapBuffers();
     }
 }
