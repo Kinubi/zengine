@@ -6,25 +6,41 @@ const Shader = @import("shader.zig").Shader;
 const Camera = @import("camera.zig").Camera;
 const math = @import("mach").math;
 
+pub const WindowProps = struct {
+    width: u32 = 800,
+    height: u32 = 600,
+    fullscreen: bool = true,
+    title: [:0]const u8 = "Hello Zengine!",
+    vsync: bool = true,
+};
+
 pub const Renderer = struct {
     window: ?glfw.Window = null,
     gl_procs: gl.ProcTable = undefined,
     mesh: Mesh = undefined,
     shader: Shader = undefined,
-    camera: Camera = Camera{},
+    var camera: Camera = .{};
+
     var motion = math.vec3(0, 0, 0);
+    var camOffset = math.vec3(0, 0, 0);
 
     fn errorCallback(error_code: glfw.ErrorCode, description: [:0]const u8) void {
         std.log.err("glfw: {}: {s}\n", .{ error_code, description });
     }
-    pub fn init(self: *@This()) !void {
+    pub fn init(self: *@This(), windowProps: WindowProps) !void {
         glfw.setErrorCallback(errorCallback);
         if (!glfw.init(.{})) {
             return error.GlfwInitFailed;
         }
 
+        var monitor = glfw.Monitor.getPrimary().?;
+        const mode = monitor.getVideoMode().?;
+
+        const width = if (windowProps.fullscreen) mode.getWidth() else windowProps.width;
+        const height = if (windowProps.fullscreen) mode.getHeight() else windowProps.height;
+
         // Create our window
-        self.window = glfw.Window.create(1280, 720, "Hello, zengine!", null, null, .{
+        self.window = glfw.Window.create(width, height, windowProps.title, if (windowProps.fullscreen) monitor else null, null, .{
             .context_version_major = gl.info.version_major,
             .context_version_minor = gl.info.version_minor,
             .opengl_profile = .opengl_core_profile,
@@ -40,6 +56,8 @@ pub const Renderer = struct {
         }
 
         gl.makeProcTableCurrent(&self.gl_procs);
+
+        glfw.swapInterval(if (windowProps.vsync) 1 else 0);
 
         //Shaders
         const vertexShaderFP = "../../res/shaders/simple_shader.vert";
@@ -115,8 +133,8 @@ pub const Renderer = struct {
         };
         self.shader.compile();
 
-        const mat = self.camera.projectionMatrix;
-        std.debug.print("Projection matrix: {any}\n", .{mat});
+        camera.renderer = self;
+        //camera.updateProjectionMatrix();
     }
 
     pub fn deinit(self: *@This()) void {
@@ -130,19 +148,54 @@ pub const Renderer = struct {
     }
 
     pub fn isRunning(self: @This()) bool {
+        const speed = 0.001;
+
+        if (self.keyPressed(.w)) {
+            camOffset.v[2] -= speed;
+        } else if (self.keyPressed(.s)) {
+            camOffset.v[2] += speed;
+        }
+
+        if (self.keyPressed(.a)) {
+            camOffset.v[0] += speed;
+        } else if (self.keyPressed(.d)) {
+            camOffset.v[0] -= speed;
+        }
+
+        if (self.keyPressed(.c)) {
+            camera.nearPlane += 0.01;
+            camera.updateProjectionMatrix();
+        } else if (self.keyPressed(.x)) {
+            camera.nearPlane -= 0.01;
+            camera.updateProjectionMatrix();
+        }
+
+        const camOffsetMatrix = math.Mat4x4.translate(camOffset);
+        camera.viewMatrix = math.Mat4x4.ident.mul(&camOffsetMatrix);
+
+        //Shader.setMatrix(0, engine.camera.projectionMatrix);
+
+        motion.v[0] = @floatCast(@sin(glfw.getTime()));
+        motion.v[1] = @floatCast(@cos(glfw.getTime()));
         glfw.pollEvents();
 
         gl.ClearColor(0.5, 0.1, 0.1, 1);
         gl.Clear(gl.COLOR_BUFFER_BIT);
         motion.v[0] = @floatCast(@sin(glfw.getTime()));
-        std.debug.print("Motion: {any}\n", .{motion});
-        Shader.setVec3(0, motion);
-        Shader.setMatrix(1, self.camera.projectionMatrix);
+        std.debug.print("View matrix: {any}\n", .{camera.viewMatrix});
+        std.debug.print("Projection matrix: {any}\n", .{camera.projectionMatrix});
+        Shader.setUniform(0, motion);
+        Shader.setUniform(1, camera.projectionMatrix);
+        //Shader.setUniform(2, camera.viewMatrix);
         self.shader.bind();
 
         self.mesh.draw();
 
         self.window.?.swapBuffers();
         return !self.window.?.shouldClose();
+    }
+
+    pub fn keyPressed(self: @This(), key: glfw.Key) bool {
+        return self.window.?.getKey(key) == glfw.Action.press;
     }
 };

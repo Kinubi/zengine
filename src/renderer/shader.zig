@@ -28,11 +28,28 @@ pub const Shader = struct {
         gl.DeleteProgram(self.program);
     }
 
-    pub fn setVec3(uniformLocation: i32, vec: math.Vec3) void {
-        gl.Uniform3fv(uniformLocation, 1, &vec.v[0]);
-    }
+    pub fn setUniform(location: i32, value: anytype) void {
+        comptime {
+            const T = @TypeOf(value);
+            if (T != i32 and
+                T != f32 and
+                T != math.Vec2 and
+                T != math.Vec3 and
+                T != math.Vec4 and
+                T != math.Mat4x4)
+            {
+                @compileError("Uniform with type of " ++ @typeName(T) ++ " is not supported");
+            }
+        }
 
-    pub fn setMatrix(uniformLocation: i32, matrix: math.Mat4x4) void {
-        gl.UniformMatrix4fv(uniformLocation, 1, gl.FALSE, &matrix.v[0].v[0]);
+        switch (@TypeOf(value)) {
+            inline i32 => gl.Uniform1i(location, value),
+            inline f32 => gl.Uniform1f(location, value),
+            inline math.Vec2 => gl.Uniform2fv(location, 1, &value.v[0]),
+            inline math.Vec3 => gl.Uniform3fv(location, 1, &value.v[0]),
+            inline math.Vec4 => gl.Uniform4fv(location, 1, &value.v[0]),
+            inline math.Mat4x4 => gl.UniformMatrix4fv(location, 1, gl.FALSE, &value.v[0].v[0]),
+            inline else => unreachable,
+        }
     }
 };
