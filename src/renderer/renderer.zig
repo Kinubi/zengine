@@ -2,6 +2,7 @@ const std = @import("std");
 const glfw = @import("mach-glfw");
 const gl = @import("gl");
 const Mesh = @import("mesh.zig").Mesh;
+const Vertex = @import("mesh.zig").Vertex;
 const Shader = @import("shader.zig").Shader;
 const Camera = @import("camera.zig").Camera;
 const math = @import("mach").math;
@@ -84,18 +85,54 @@ pub const Renderer = struct {
         const fragShaderSource = fs_file.readToEndAllocOptions(gpa.allocator(), (10 * 1024), null, @alignOf(u8), 0) catch unreachable;
 
         // Vertices
-        const vertices = [_]f32{
-            0, 0, 0,
-            1, 0, 0,
-            0, 1, 0,
-            1, 1, 0,
-            0, 0, 1,
-            1, 0, 1,
-            0, 1, 1,
-            1, 1, 1,
-        };
+        // const vertices = [_]f32{
+        //     0, 0, 0,
+        //     1, 0, 0,
+        //     0, 1, 0,
+        //     1, 1, 0,
+        //     0, 0, 1,
+        //     1, 0, 1,
+        //     0, 1, 1,
+        //     1, 1, 1,
+        // };
 
-        const indices = [_]u32{
+        // const indices = [_]u32{
+        //     0, 1, 2,
+        //     2, 3, 0,
+        //     // right
+        //     1, 5, 6,
+        //     6, 2, 1,
+        //     // back
+        //     7, 6, 5,
+        //     5, 4, 7,
+        //     // left
+        //     4, 0, 3,
+        //     3, 7, 4,
+        //     // bottom
+        //     4, 5, 1,
+        //     1, 0, 4,
+        //     // top
+        //     3, 2, 6,
+        //     6, 7, 3,
+        // };
+
+        var mesh2 = Mesh.init(gpa.allocator());
+
+        try mesh2.vertices.appendSlice(&.{
+            // front
+            Vertex{ .position = math.vec3(-1.0, -1.0, 1.0) },
+            Vertex{ .position = math.vec3(1.0, -1.0, 1.0) },
+            Vertex{ .position = math.vec3(1.0, 1.0, 1.0) },
+            Vertex{ .position = math.vec3(-1.0, 1.0, 1.0) },
+            // back
+            Vertex{ .position = math.vec3(-1.0, -1.0, -1.0) },
+            Vertex{ .position = math.vec3(1.0, -1.0, -1.0) },
+            Vertex{ .position = math.vec3(1.0, 1.0, -1.0) },
+            Vertex{ .position = math.vec3(-1.0, 1.0, -1.0) },
+        });
+
+        try mesh2.indices.appendSlice(&.{
+            // front
             0, 1, 2,
             2, 3, 0,
             // right
@@ -113,34 +150,23 @@ pub const Renderer = struct {
             // top
             3, 2, 6,
             6, 7, 3,
-        };
+        });
 
-        self.mesh = Mesh.new(
-            vertices[0..].ptr,
-            indices[0..].ptr,
-            vertices.len,
-            indices.len,
-        );
-
-        self.mesh.genBuffers();
-        self.mesh.bind();
-
-        self.mesh.bufferData();
+        try mesh2.create();
 
         self.shader = Shader{
             .vertSource = vertexShaderSource,
             .fragSource = fragShaderSource,
         };
-        self.shader.compile();
+        try self.shader.compile();
 
         camera.renderer = self;
-        //camera.updateProjectionMatrix();
+        camera.updateProjectionMatrix();
     }
 
     pub fn deinit(self: *@This()) void {
-        self.shader.deinit();
-        self.mesh.delete();
-        self.mesh.unbind();
+        //self.shader.deinit();
+        self.mesh.deinit();
         self.window.?.destroy();
         gl.makeProcTableCurrent(null);
         glfw.makeContextCurrent(null);
@@ -173,21 +199,18 @@ pub const Renderer = struct {
         const camOffsetMatrix = math.Mat4x4.translate(camOffset);
         camera.viewMatrix = math.Mat4x4.ident.mul(&camOffsetMatrix);
 
-        //Shader.setMatrix(0, engine.camera.projectionMatrix);
-
         motion.v[0] = @floatCast(@sin(glfw.getTime()));
         motion.v[1] = @floatCast(@cos(glfw.getTime()));
         glfw.pollEvents();
 
         gl.ClearColor(0.5, 0.1, 0.1, 1);
         gl.Clear(gl.COLOR_BUFFER_BIT);
-        motion.v[0] = @floatCast(@sin(glfw.getTime()));
-        std.debug.print("View matrix: {any}\n", .{camera.viewMatrix});
-        std.debug.print("Projection matrix: {any}\n", .{camera.projectionMatrix});
-        Shader.setUniform(0, motion);
-        Shader.setUniform(1, camera.projectionMatrix);
-        //Shader.setUniform(2, camera.viewMatrix);
+
         self.shader.bind();
+
+        // self.shader.setUniformByName("_Offset", motion);
+        // self.shader.setUniformByName("_P", camera.projectionMatrix);
+        // self.shader.setUniformByName("_V", camera.viewMatrix);
 
         self.mesh.draw();
 
